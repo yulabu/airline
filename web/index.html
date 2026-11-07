@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>航空客运订票系统</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <h1>✈ 航空客运订票系统</h1>
+  <div class="student-info">班级：软工X班 &nbsp; 学号：XXXXXXXXXX &nbsp; 姓名：XXX</div>
+  <nav>
+    <button id="tab-passenger" class="tab active">乘客服务</button>
+    <button id="tab-admin" class="tab">管理员</button>
+  </nav>
+</header>
+
+<!-- ══════════ 乘客端 ══════════ -->
+<main id="view-passenger" class="view">
+  <section class="panel">
+    <h2>① 查询航线</h2>
+    <div class="form-row">
+      <label>起点 <input id="q-from" placeholder="如：广州（可空）"></label>
+      <label>终点 <input id="q-to" placeholder="如：北京（可空）"></label>
+      <label>星期
+        <select id="q-weekday">
+          <option value="0">不限</option>
+          <option value="1">周一</option><option value="2">周二</option>
+          <option value="3">周三</option><option value="4">周四</option>
+          <option value="5">周五</option><option value="6">周六</option>
+          <option value="7">周日</option>
+        </select>
+      </label>
+      <button class="primary" onclick="doSearch()">查询</button>
+    </div>
+  </section>
+
+  <section class="panel" id="result-panel" hidden>
+    <h2>查询结果</h2>
+    <div id="route-list"></div>
+  </section>
+
+  <section class="panel">
+    <h2>③ 退票</h2>
+    <div class="form-row">
+      <label>航班号 <input id="rf-flight" placeholder="CZ3101" style="text-transform:uppercase"></label>
+      <label>日期 <input id="rf-date" type="date"></label>
+      <label>身份证 <input id="rf-idcard" maxlength="18"></label>
+      <label>张数 <input id="rf-qty" type="number" min="0" value="0" title="0 = 整单全退"></label>
+      <button class="primary" onclick="doRefund()">退票</button>
+    </div>
+    <div id="refund-result" class="result-box"></div>
+  </section>
+</main>
+
+<!-- ══════════ 管理员端 ══════════ -->
+<main id="view-admin" class="view" hidden>
+  <section class="panel">
+    <h2>① 新建航线</h2>
+    <div class="form-row wrap">
+      <label>航班号 <input id="na-no" maxlength="7" style="text-transform:uppercase"></label>
+      <label>起点 <input id="na-from"></label>
+      <label>终点 <input id="na-to"></label>
+      <label>机型 <select id="na-aircraft"></select></label>
+      <label class="wd">飞行日
+        <span id="na-weekdays">
+          <input type="checkbox" value="1">一
+          <input type="checkbox" value="2">二
+          <input type="checkbox" value="3">三
+          <input type="checkbox" value="4">四
+          <input type="checkbox" value="5">五
+          <input type="checkbox" value="6">六
+          <input type="checkbox" value="0">日
+        </span>
+      </label>
+    </div>
+    <div class="form-row wrap" id="na-cabins"></div>
+    <button class="primary" onclick="createRoute()">创建航线</button>
+  </section>
+
+  <section class="panel">
+    <h2>② 修改航线</h2>
+    <div class="form-row">
+      <label>航班号
+        <select id="ud-flight"></select>
+      </label>
+      <button onclick="loadRouteForEdit()">载入</button>
+    </div>
+    <div class="form-row wrap">
+      <label>起点 <input id="ud-from"></label>
+      <label>终点 <input id="ud-to"></label>
+      <label>机型 <select id="ud-aircraft"></select></label>
+      <label class="wd">飞行日
+        <span id="ud-weekdays">
+          <input type="checkbox" value="1">一
+          <input type="checkbox" value="2">二
+          <input type="checkbox" value="3">三
+          <input type="checkbox" value="4">四
+          <input type="checkbox" value="5">五
+          <input type="checkbox" value="6">六
+          <input type="checkbox" value="0">日
+        </span>
+      </label>
+    </div>
+    <div class="form-row wrap" id="ud-cabins"></div>
+    <button class="primary" onclick="updateRoute()">保存修改</button>
+    <p class="hint">修改约束：各舱位新定额不能低于该舱位已售最大值；有已售票时不能更换机型。</p>
+  </section>
+
+  <section class="panel">
+    <h2>③ 订票记录</h2>
+    <div class="form-row">
+      <label>航班号 <input id="rec-flight" placeholder="可空" style="text-transform:uppercase"></label>
+      <label>日期 <input id="rec-date" type="date"></label>
+      <label>身份证 <input id="rec-idcard" maxlength="18" placeholder="可空"></label>
+      <button class="primary" onclick="loadRecords()">查询</button>
+    </div>
+    <div id="records-box"></div>
+  </section>
+
+  <section class="panel">
+    <h2>④ 模拟登机（超卖调整）</h2>
+    <div class="form-row">
+      <label>航班号 <input id="ck-flight" placeholder="CZ3101" style="text-transform:uppercase"></label>
+      <label>日期 <input id="ck-date" type="date"></label>
+      <button class="primary" onclick="doCheckin()">执行登机</button>
+    </div>
+    <div id="checkin-result" class="result-box"></div>
+  </section>
+</main>
+
+<!-- 订票对话框 -->
+<dialog id="book-dialog">
+  <h2 id="bd-title">订票</h2>
+  <div class="form-row wrap">
+    <label>日期 <input id="bd-date" readonly></label>
+    <label>舱位 <select id="bd-cabin"></select></label>
+    <label>张数 <input id="bd-qty" type="number" min="1" max="6" value="1"></label>
+    <label>指定座位 <input id="bd-seat" placeholder="如 12A（可空）" style="text-transform:uppercase"></label>
+  </div>
+  <div id="bd-seatmap" class="seatmap"></div>
+  <div class="form-row wrap">
+    <label>姓名 <input id="bd-name"></label>
+    <label>身份证 <input id="bd-idcard" maxlength="18"></label>
+  </div>
+  <div id="bd-result" class="result-box"></div>
+  <div class="dialog-actions">
+    <button onclick="bookDialog.close()">关闭</button>
+    <button class="primary" onclick="submitBook()">提交订票</button>
+    <button id="bd-waitlist-btn" class="accent" hidden onclick="submitWaitlist()">登记候补</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+<script src="js/app.js"></script>
+</body>
+</html>
