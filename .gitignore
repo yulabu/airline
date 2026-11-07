@@ -12,6 +12,10 @@ state.json.tmp
 # 个人信息（信息安全：只留模板 student.env.example）
 student.env
 
+# 报告成品（封面含个人信息，由 tools/make_report.cjs 本地生成）
+课程设计报告*.docx
+tools/node_modules/
+
 # 系统与本机配置
 .DS_Store
 .vscode/
