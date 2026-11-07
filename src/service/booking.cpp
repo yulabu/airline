@@ -186,6 +186,41 @@ Result<RefundOut> AirlineService::refund(const RefundCmd& cmd) {
 
     // ── 候补撮合：同舱位队列，"首个能满足者优先" ─────────
     LinkQueue<WaitEntry>& queue = inst->wait_lists[o.cabin];
+
+    // 撮合前清理失效登记，保证"一人不会被撮合出第二张订单"：
+    //   ① 身份证在本班次已持有效订单 —— 该登记已无意义，移除
+    //   ② 同一身份证登记了多条 —— 只保留最早的一条
+    {
+        SeqList<int> stale;
+        struct Mark { char id[kIdCardLen]; };
+        SeqList<Mark> marks;
+        int idx = 0;
+        queue.for_each([&](const WaitEntry& w) {
+            bool remove = false;
+            if (inst->find_order_by_idcard(w.id_card) != nullptr) {
+                remove = true;
+            } else {
+                bool dup = false;
+                for (int k = 0; k < marks.size(); ++k) {
+                    if (std::strcmp(marks.at(k).id, w.id_card) == 0) dup = true;
+                }
+                if (dup) {
+                    remove = true;
+                } else {
+                    Mark m;
+                    std::strncpy(m.id, w.id_card, kIdCardLen - 1);
+                    marks.push_back(m);
+                }
+            }
+            if (remove) stale.push_back(idx);
+            ++idx;
+        });
+        // 从后往前删，避免下标位移
+        for (int k = stale.size() - 1; k >= 0; --k) {
+            queue.remove_at(stale.at(k), nullptr);
+        }
+    }
+
     int remaining = n;
     while (remaining > 0) {
         int widx = -1;
@@ -262,6 +297,25 @@ Result<WaitOut> AirlineService::join_waitlist(const WaitCmd& cmd) {
 
     if (inst->phase == FLIGHT_LOCKED) {
         return Result<WaitOut>::failure(Status::FLIGHT_LOCKED);
+    }
+
+    // 候补是"订票失败后的补充手段"，三类情况不允许再排队：
+    //   ① 尚有余票 —— 直接订票即可，排队无意义
+    //   ② 已持有效订单 —— 一人一航班一单，撮合成功会造成双订单
+    //   ③ 已在同一舱位队列里 —— 重复登记
+    if (avail_sellable(*route, *inst, cmd.cabin) >= cmd.qty) {
+        return Result<WaitOut>::failure(Status::NOT_ELIGIBLE);
+    }
+    if (inst->find_order_by_idcard(cmd.id_card.c_str()) != nullptr) {
+        return Result<WaitOut>::failure(Status::DUPLICATE_ORDER);
+    }
+    LinkQueue<WaitEntry>& dup_check = inst->wait_lists[cmd.cabin];
+    bool already_queued = false;
+    dup_check.for_each([&](const WaitEntry& w) {
+        if (std::strcmp(w.id_card, cmd.id_card.c_str()) == 0) already_queued = true;
+    });
+    if (already_queued) {
+        return Result<WaitOut>::failure(Status::NOT_ELIGIBLE);
     }
 
     WaitEntry e;

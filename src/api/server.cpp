@@ -134,7 +134,7 @@ BookCmd parse_book_cmd(const json& body, bool* ok) {
     return cmd;
 }
 
-void register_passenger(Http& srv, AirlineService& svc) {
+void register_passenger(Http& srv, AirlineService& svc, const std::string& state_path) {
     // ① 查询航线：起点或终点（至少一个）
     srv.Get("/api/search", [&](const httplib::Request& req, httplib::Response& res) {
         std::string from = req.get_param_value("from");
@@ -189,7 +189,7 @@ void register_passenger(Http& srv, AirlineService& svc) {
                      {"qty", r.value.qty},
                      {"seat_pending", r.value.seat_pending},
                      {"seats", r.value.seats}};
-        store::flush(svc.repo(), "state.json");
+        store::flush(svc.repo(), state_path);
         reply(res, Status::OK, std::move(data));
     });
 
@@ -228,7 +228,7 @@ void register_passenger(Http& srv, AirlineService& svc) {
         json data = {{"order_id", r.value.order_id},
                      {"refunded", r.value.refunded},
                      {"promoted", promoted}};
-        store::flush(svc.repo(), "state.json");
+        store::flush(svc.repo(), state_path);
         reply(res, Status::OK, std::move(data));
     });
 
@@ -257,7 +257,7 @@ void register_passenger(Http& srv, AirlineService& svc) {
                      {"cabin", r.value.cabin},
                      {"qty", r.value.qty},
                      {"position", r.value.position}};
-        store::flush(svc.repo(), "state.json");
+        store::flush(svc.repo(), state_path);
         reply(res, Status::OK, std::move(data));
     });
 
@@ -300,7 +300,7 @@ void register_passenger(Http& srv, AirlineService& svc) {
     });
 }
 
-void register_admin(Http& srv, AirlineService& svc) {
+void register_admin(Http& srv, AirlineService& svc, const std::string& state_path) {
     // 管理员 ① 新建航线
     srv.Post("/api/admin/routes", [&](const httplib::Request& req, httplib::Response& res) {
         json body;
@@ -336,7 +336,7 @@ void register_admin(Http& srv, AirlineService& svc) {
 
         auto r = svc.create_route(cmd);
         if (!r.ok()) return reply_result(res, r.status);
-        store::flush(svc.repo(), "state.json");
+        store::flush(svc.repo(), state_path);
         reply(res, Status::OK, route_view(r.value));
     });
 
@@ -370,7 +370,7 @@ void register_admin(Http& srv, AirlineService& svc) {
 
                 auto r = svc.update_route(req.matches[1], cmd);
                 if (!r.ok()) return reply_result(res, r.status);
-                store::flush(svc.repo(), "state.json");
+                store::flush(svc.repo(), state_path);
                 reply(res, Status::OK, route_view(r.value));
             });
 
@@ -454,7 +454,7 @@ void register_admin(Http& srv, AirlineService& svc) {
                      {"upgrades", upgrades},
                      {"forfeits", forfeits},
                      {"boarded", boarded}};
-        store::flush(svc.repo(), "state.json");
+        store::flush(svc.repo(), state_path);
         reply(res, Status::OK, std::move(data));
     });
 }
@@ -467,7 +467,7 @@ int serve(AirlineService& svc, const std::string& web_dir,
 
     srv.set_mount_point("/", web_dir.c_str());
 
-    srv.Get("/api/meta", [&](const httplib::Request& req, httplib::Response& res) {
+    srv.Get("/api/meta", [&](const httplib::Request&, httplib::Response& res) {
         json aircraft = json::array();
         for (int i = 0; i < seat_layout_count(); ++i) {
             aircraft.push_back(seat_layout_aircraft(i));
@@ -483,10 +483,10 @@ int serve(AirlineService& svc, const std::string& web_dir,
                {"max_seats_per_order", kMaxSeatsPerOrder}});
     });
 
-    register_passenger(srv, svc);
-    register_admin(srv, svc);
+    register_passenger(srv, svc, state_path);
+    register_admin(srv, svc, state_path);
 
-    (void)state_path;  // 落盘路径统一为工作目录下的 state.json
+     // state_path 由 serve 传入，加载与落盘使用同一路径
 
     srv.listen("0.0.0.0", port);
     return 0;

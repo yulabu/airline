@@ -599,6 +599,7 @@ extern int g_failures;
 void test_service_flow();
 void test_checkin_flow();
 void test_admin_flow();
+void test_waitlist_guard();
 void test_recommend_flow();
 
 // ─────────────────────────── main ───────────────────────────
@@ -617,6 +618,7 @@ int main() {
     test_service_flow();
     test_checkin_flow();
     test_admin_flow();
+    test_waitlist_guard();
     test_recommend_flow();
 
     std::printf("---\n%d checks, %d failures\n", g_checks, g_failures);

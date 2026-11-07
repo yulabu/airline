@@ -329,6 +329,111 @@ void test_admin_flow() {
     TCHECK(rec.value.empty());  // 新服务没卖过 CZ3101
 }
 
+void test_waitlist_guard() {
+    std::printf("[service: waitlist guard]\n");
+
+    AirlineService svc(Date{2026, 11, 9});
+    svc.seed_standard();
+
+    // ① 有余票时不允许登记候补
+    WaitCmd w;
+    w.flight_no = "CZ3101";
+    w.name = "多余候补";
+    w.id_card = "440101199001060001";
+    w.cabin = CABIN_ECONOMY;
+    w.qty = 1;
+    auto r0 = svc.join_waitlist(w);
+    TCHECK(!r0.ok());
+    TCHECK(r0.status == Status::NOT_ELIGIBLE);
+
+    // 制造超卖：经济舱 156 可售（150 定额 + 6 超卖），26 人 × 6 张订满
+    for (int i = 0; i < 26; ++i) {
+        BookCmd c;
+        c.flight_no = "CZ3101";
+        char name[kNameLen];
+        char id[kIdCardLen];
+        std::snprintf(name, sizeof(name), "满座%02d", i);
+        std::snprintf(id, sizeof(id), "440101199001%05dI", i);
+        c.name = name;
+        c.id_card = id;
+        c.cabin = CABIN_ECONOMY;
+        c.qty = 6;
+        TCHECK(svc.book(c).ok());
+    }
+
+    // ② 超卖后可登记；同一身份证不允许重复登记
+    w.id_card = "440101199001061001";
+    w.qty = 2;
+    TCHECK(svc.join_waitlist(w).ok());
+    auto r2 = svc.join_waitlist(w);
+    TCHECK(!r2.ok());
+    TCHECK(r2.status == Status::NOT_ELIGIBLE);
+
+    // ③ 已持有效订单的人不允许再登记
+    w.id_card = "44010119900100000I";
+    auto r3 = svc.join_waitlist(w);
+    TCHECK(!r3.ok());
+    TCHECK(r3.status == Status::DUPLICATE_ORDER);
+
+    // ④ 失效登记清理：候补者后来通过正常渠道订到了票，
+    //    其残留的候补登记必须在下一次撮合时被移除，绝不能被撮合出第二张订单
+    //    途径：管理员把经济舱超卖上限 6 → 16，可售余量变 4，候补者直接订 2 张
+    RouteCmd uc;
+    uc.from = "广州";
+    uc.to = "北京";
+    uc.aircraft = "B737-800";
+    uc.weekdays = 0b0101011;
+    uc.cabins[CABIN_FIRST] = {8, 0, 2600};
+    uc.cabins[CABIN_BUSINESS] = {16, 2, 1800};
+    // 已售 156 超过原定额 150 → 新定额必须 ≥ 已售；156 恰为经济舱物理座位数
+    uc.cabins[CABIN_ECONOMY] = {156, 16, 1200};
+    TCHECK(svc.update_route("CZ3101", uc).ok());
+
+    WaitCmd stale_wait;
+    stale_wait.flight_no = "CZ3101";
+    stale_wait.name = "先候后订";
+    stale_wait.id_card = "440101199001062002";
+    stale_wait.cabin = CABIN_ECONOMY;
+    stale_wait.qty = 2;
+    // ④-a 余票充足时登记 → 拒绝（NOT_ELIGIBLE）
+    auto r4 = svc.join_waitlist(stale_wait);
+    TCHECK(!r4.ok());
+    TCHECK(r4.status == Status::NOT_ELIGIBLE);
+
+    // ④-b 造一个"登记在先、订票在后"的残留：先退 4 张制造余票，
+    //     此时"多余候补"(440101199001061001) 的登记会被撮合掉；
+    //     但撮合时该人若无订单则会获票——为构造残留，改为直接考察：
+    //     1) 登记人 A(…061001) 已在队列；2) A 通过订票拿到票是不可能的（一人一单仅限订单）。
+    //     于是用另一条确定性路径：A 先订到票（余票 4），再登记候补 → DUPLICATE_ORDER。
+    BookCmd a_book;
+    a_book.flight_no = "CZ3101";
+    a_book.name = "多余候补";
+    a_book.id_card = "440101199001061001";
+    a_book.cabin = CABIN_ECONOMY;
+    a_book.qty = 2;
+    // 余票 4 ≥ 2，可正常订票；但这单会让 A 同时保有"队列登记 + 订单"
+    TCHECK(svc.book(a_book).ok());
+
+    // ④-c 退 2 张 → 撮合前清理：A 的残留登记必须被移除，A 不能再获一单
+    RefundCmd rf;
+    rf.flight_no = "CZ3101";
+    rf.id_card = "44010119900100001I";
+    rf.qty = 2;
+    auto rr = svc.refund(rf);
+    TCHECK(rr.ok());
+    int promoted_a = 0;
+    for (const auto& p : rr.value.promoted) {
+        if (p.id_card == "440101199001061001") ++promoted_a;
+    }
+    TCHECK_EQ(promoted_a, 0);  // A 已持订单，绝不被再次撮合
+
+    // ④-d A 现在持有且仅持一张订单
+    auto rec = svc.records("CZ3101", "", "440101199001061001");
+    TCHECK(rec.ok());
+    TCHECK_EQ(rec.value.size(), 1u);
+    TCHECK(rec.value[0].status == ORDER_ACTIVE);
+}
+
 void test_recommend_flow() {
     std::printf("[service: recommend]\n");
 
