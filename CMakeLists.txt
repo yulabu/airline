@@ -61,6 +61,7 @@ endif()
 # ─────────────────────────────────────────────────────────────
 add_executable(airline
     src/app/main.cpp
+    src/app/student_info.cpp
 )
 target_link_libraries(airline PRIVATE airline_api)
 

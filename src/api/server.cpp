@@ -462,7 +462,8 @@ void register_admin(Http& srv, AirlineService& svc, const std::string& state_pat
 }  // namespace
 
 int serve(AirlineService& svc, const std::string& web_dir,
-          const std::string& state_path, int port) {
+          const std::string& state_path, int port, const std::string& class_name,
+          const std::string& student_id, const std::string& name) {
     Http srv;
 
     srv.set_mount_point("/", web_dir.c_str());
@@ -480,7 +481,9 @@ int serve(AirlineService& svc, const std::string& web_dir,
               {{"today", date_to_string(svc.today())},
                {"aircraft", aircraft},
                {"cabins", cabins},
-               {"max_seats_per_order", kMaxSeatsPerOrder}});
+               {"max_seats_per_order", kMaxSeatsPerOrder},
+               {"student",
+                {{"class", class_name}, {"student_id", student_id}, {"name", name}}}});
     });
 
     register_passenger(srv, svc, state_path);

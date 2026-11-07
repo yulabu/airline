@@ -48,6 +48,16 @@ Windows 环境是提交与答辩的正式环境，完整的安装、构建、双
 
 **重置演示数据**：删除 `state.json` 后重启即可恢复干净种子（18 条航线、4 种机型）。
 
+### 个人信息配置（不入仓库）
+
+程序启动横幅与网页页头显示的班级 / 学号 / 姓名来自工作目录下的 `student.env`（已被 `.gitignore` 排除，不会提交到 GitHub）：
+
+```bash
+cp student.env.example student.env   # 然后编辑填写真实信息，重启程序生效
+```
+
+缺失时程序正常启动，界面显示占位下划线并打印提醒。Windows 双击运行时，`student.env` 需与 exe 同目录。
+
 ## 在 Windows 上运行（提交环境）
 
 ### 第 1 步：装工具（一次性）
@@ -149,6 +159,7 @@ Windows 首次运行会弹「Windows 安全中心警报」，因为程序要监�
 CZ6_航空订票_班级_学号_姓名\
 ├── src\  third_party\  web\  tests\  CMakeLists.txt   ← 源码
 ├── airline.exe                                         ← Release 可执行文件
+├── student.env                                         ← 个人信息（exe 同目录）
 ├── state.json（可选，演示现场数据）
 ├── 测试用例.md（或演示脚本）
 └── 课程设计报告.docx
@@ -268,7 +279,7 @@ store/    JSON 持久化（唯一碰第三方库的业务模块，与 api 同属
 
 ## 提交前检查清单
 
-- [ ] `src/app/main.cpp` 与 `web/index.html` 顶部的班级 / 学号 / 姓名占位符改成真实信息
+- [ ] 复制 `student.env.example` 为 `student.env` 并填写班级 / 学号 / 姓名（评分硬性要求：运行界面突出显示设计者信息；该文件不入 git，但**光盘目录里要带**）
 - [ ] **在 Windows（VS 2022 / MSVC）上完整构建并跑通一遍**——这是提交环境，macOS 上通过不算数
 - [ ] 准备一份演示脚本：查询 → 订票（含选座）→ 订满触发超卖 → 候补 → 退票撮合 → 登机调整报告
 - [ ] 报告七章（需求分析 / 概要设计 / 详细设计 / 调试分析 / 用户使用说明 / 测试结果 / 附录）

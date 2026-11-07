@@ -38,7 +38,15 @@ function esc(s) {
 
 async function init() {
   const meta = await api('/api/meta');
-  if (meta.ok) META = meta.data;
+  if (meta.ok) {
+    META = meta.data;
+    // 页头个人信息来自后端（student.env 配置，不入仓库）
+    const s = META.student;
+    if (s) {
+      document.getElementById('student-info').innerHTML =
+        `班级：${esc(s.class)} &nbsp; 学号：${esc(s.student_id)} &nbsp; 姓名：${esc(s.name)}`;
+    }
+  }
 
   // 机型下拉框
   for (const sel of [document.getElementById('na-aircraft'), document.getElementById('ud-aircraft')]) {

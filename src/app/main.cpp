@@ -3,6 +3,7 @@
 #include <string>
 
 #include "api/server.h"
+#include "app/student_info.h"
 #include "base/date.h"
 #include "service/airline_service.h"
 #include "store/store.h"
@@ -11,6 +12,7 @@ int main(int argc, char** argv) {
     int port = 8080;
     std::string web_dir = "web";
     std::string state_path = "state.json";
+    std::string student_env = "student.env";
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
@@ -19,6 +21,8 @@ int main(int argc, char** argv) {
             web_dir = argv[++i];
         } else if (std::strcmp(argv[i], "--state") == 0 && i + 1 < argc) {
             state_path = argv[++i];
+        } else if (std::strcmp(argv[i], "--student") == 0 && i + 1 < argc) {
+            student_env = argv[++i];
         }
     }
 
@@ -34,14 +38,25 @@ int main(int argc, char** argv) {
                     svc.repo().route_count());
     }
 
+    // 个人信息：从 student.env 读取（不入库、不上传）
+    airline::app::StudentInfo stu = airline::app::load_student_info(student_env);
+    if (!stu.loaded) {
+        std::printf(
+            "[warn] 未读到 %s，界面将显示占位符 —— 请复制 student.env.example "
+            "为 student.env 并填写\n",
+            student_env.c_str());
+    }
+
     std::printf(
         "================================================\n"
         "          航空客运订票系统\n"
-        "          班级：________   学号：________\n"
-        "          姓名：________\n"
+        "          班级：%s   学号：%s\n"
+        "          姓名：%s\n"
         "================================================\n"
         "[run ] http://localhost:%d   (web: %s)\n",
-        port, web_dir.c_str());
+        stu.class_name.c_str(), stu.student_id.c_str(), stu.name.c_str(), port,
+        web_dir.c_str());
 
-    return airline::api::serve(svc, web_dir, state_path, port);
+    return airline::api::serve(svc, web_dir, state_path, port, stu.class_name,
+                               stu.student_id, stu.name);
 }
